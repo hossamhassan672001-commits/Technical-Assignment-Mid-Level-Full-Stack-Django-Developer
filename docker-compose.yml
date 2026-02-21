@@ -15,7 +15,8 @@ services:
       - ./backend/.env
     environment:
       - DJANGO_SETTINGS_MODULE=consultation_system.settings
-    restart: unless-stopped
+      - DEBUG=False
+    restart: always
 
   frontend:
     image: nginx:alpine
