@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cms_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - cms_db:/app/db.sqlite3
+    env_file:
+      - ./backend/.env
+    environment:
+      - DJANGO_SETTINGS_MODULE=consultation_system.settings
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    container_name: cms_frontend
+    ports:
+      - "5500:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  cms_db:

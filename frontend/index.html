@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consultation Management System</title>
+  <meta name="description" content="Manage patients and medical consultations with AI-powered summary generation." />
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bs-primary: #4f46e5;
+      --brand: #4f46e5;
+      --brand-light: #e0e7ff;
+    }
+    body { background: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .navbar-brand { font-weight: 700; letter-spacing: -0.3px; }
+    .navbar { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important; }
+    .nav-tabs .nav-link.active { border-bottom: 3px solid var(--brand); color: var(--brand); font-weight: 600; }
+    .nav-tabs .nav-link { color: #6b7280; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+    .card-header { border-radius: 12px 12px 0 0 !important; }
+    .badge-ai { background: linear-gradient(90deg, #4f46e5, #7c3aed); color: #fff; font-size: .7rem; border-radius: 20px; padding: 3px 10px; }
+    .summary-box { background: #f0f4ff; border-left: 4px solid var(--brand); border-radius: 6px; padding: 12px 16px; white-space: pre-wrap; font-size: .9rem; }
+    .spinner-border-sm { width: 1rem; height: 1rem; }
+    .table th { font-size: .82rem; text-transform: uppercase; color: #6b7280; letter-spacing: .05em; }
+    .btn-primary { background: var(--brand); border-color: var(--brand); }
+    .btn-primary:hover { background: #4338ca; border-color: #4338ca; }
+    #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
+    .empty-state { text-align: center; padding: 2.5rem; color: #9ca3af; }
+    .empty-state i { font-size: 2.5rem; display: block; margin-bottom: .5rem; }
+  </style>
+</head>
+<body>
+<!-- Navbar -->
+<nav class="navbar navbar-dark shadow-sm">
+  <div class="container">
+    <span class="navbar-brand"><i class="bi bi-hospital me-2"></i>Consultation Management System</span>
+    <small class="text-white-50">AI-Powered</small>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="patients-tab" data-bs-toggle="tab" data-bs-target="#patients-pane" type="button">
+        <i class="bi bi-people me-1"></i>Patients
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="consultations-tab" data-bs-toggle="tab" data-bs-target="#consultations-pane" type="button" onclick="loadPatientOptions()">
+        <i class="bi bi-clipboard-pulse me-1"></i>Consultations
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- ─── PATIENTS TAB ─── -->
+    <div class="tab-pane fade show active" id="patients-pane" role="tabpanel">
+      <div class="row g-4">
+        <!-- Create Patient -->
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header bg-white fw-semibold py-3">
+              <i class="bi bi-person-plus me-2 text-primary"></i>Add Patient
+            </div>
+            <div class="card-body">
+              <form id="patientForm" novalidate>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="pFullName" placeholder="e.g. Jane Doe" required />
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
+                  <input type="date" class="form-control" id="pDob" required />
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Email <span class="text-danger">*</span></label>
+                  <input type="email" class="form-control" id="pEmail" placeholder="jane@example.com" required />
+                </div>
+                <div id="patientError" class="alert alert-danger d-none small"></div>
+                <button type="submit" class="btn btn-primary w-100" id="patientSubmitBtn">
+                  <span id="patientSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
+                  Create Patient
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Patients List -->
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+              <span class="fw-semibold"><i class="bi bi-people me-2 text-primary"></i>All Patients</span>
+              <button class="btn btn-sm btn-outline-secondary" onclick="loadPatients()">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div id="patientsList" class="table-responsive">
+                <div class="empty-state"><i class="bi bi-person-x"></i>Loading patients…</div>
+              </div>
+            </div>
+            <div id="patientsPagination" class="card-footer bg-white d-flex justify-content-between align-items-center d-none small text-muted">
+              <span id="paginationInfo"></span>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="pPrevBtn" onclick="changePage('patients', -1)">
+                  <i class="bi bi-chevron-left"></i> Prev
+                </button>
+                <button class="btn btn-outline-secondary" id="pNextBtn" onclick="changePage('patients', 1)">
+                  Next <i class="bi bi-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CONSULTATIONS TAB ─── -->
+    <div class="tab-pane fade" id="consultations-pane" role="tabpanel">
+      <div class="row g-4">
+        <!-- Create Consultation -->
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header bg-white fw-semibold py-3">
+              <i class="bi bi-clipboard-plus me-2 text-primary"></i>New Consultation
+            </div>
+            <div class="card-body">
+              <form id="consultationForm" novalidate>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Patient <span class="text-danger">*</span></label>
+                  <select class="form-select" id="cPatient" required>
+                    <option value="">Select patient…</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Symptoms <span class="text-danger">*</span></label>
+                  <textarea class="form-control" id="cSymptoms" rows="3" placeholder="Describe the patient's symptoms…" required></textarea>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-medium">Diagnosis <span class="text-muted small">(optional)</span></label>
+                  <textarea class="form-control" id="cDiagnosis" rows="2" placeholder="Doctor's diagnosis…"></textarea>
+                </div>
+                <div id="consultationError" class="alert alert-danger d-none small"></div>
+                <button type="submit" class="btn btn-primary w-100" id="consultationSubmitBtn">
+                  <span id="consultationSpinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
+                  Create Consultation
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Consultations List -->
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
+              <span class="fw-semibold"><i class="bi bi-clipboard-pulse me-2 text-primary"></i>Consultations</span>
+              <div class="d-flex gap-2 align-items-center">
+                <select class="form-select form-select-sm" id="filterPatient" style="width:auto" onchange="loadConsultations()">
+                  <option value="">All patients</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadConsultations()">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-body p-0" id="consultationsList">
+              <div class="empty-state"><i class="bi bi-clipboard-x"></i>Loading consultations…</div>
+            </div>
+            <div id="consultationsPagination" class="card-footer bg-white d-flex justify-content-between align-items-center d-none small text-muted">
+              <span id="cPaginationInfo"></span>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="cPrevBtn" onclick="changePage('consultations', -1)">
+                  <i class="bi bi-chevron-left"></i> Prev
+                </button>
+                <button class="btn btn-outline-secondary" id="cNextBtn" onclick="changePage('consultations', 1)">
+                  Next <i class="bi bi-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ──────────────────────────────────────────────
+   CONFIG
+────────────────────────────────────────────── */
+const API_BASE = 'http://localhost:8000/api';
+
+// Pagination state
+const pagination = {
+  patients:      { page: 1, next: null, prev: null, count: 0 },
+  consultations: { page: 1, next: null, prev: null, count: 0 },
+};
+
+/* ──────────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────────── */
+function showToast(message, type = 'success') {
+  const id = 'toast-' + Date.now();
+  const icons = { success: 'bi-check-circle-fill text-success', danger: 'bi-x-circle-fill text-danger', warning: 'bi-exclamation-circle-fill text-warning' };
+  const html = `
+    <div id="${id}" class="toast align-items-center border-0 shadow" role="alert" aria-live="assertive" data-bs-delay="4000">
+      <div class="d-flex bg-white rounded p-2 align-items-center gap-2">
+        <i class="bi ${icons[type] || icons.success} fs-5"></i>
+        <div class="toast-body flex-grow-1 ps-0">${message}</div>
+        <button type="button" class="btn-close me-1" data-bs-dismiss="toast"></button>
+      </div>
+    </div>`;
+  document.getElementById('toast-container').insertAdjacentHTML('beforeend', html);
+  const toastEl = document.getElementById(id);
+  new bootstrap.Toast(toastEl).show();
+  toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+function setLoading(btnId, spinnerId, loading) {
+  const btn = document.getElementById(btnId);
+  const spinner = document.getElementById(spinnerId);
+  btn.disabled = loading;
+  spinner.classList.toggle('d-none', !loading);
+}
+
+function showError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.classList.remove('d-none');
+}
+
+function clearError(elId) {
+  const el = document.getElementById(elId);
+  el.textContent = '';
+  el.classList.add('d-none');
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const data = await resp.json().catch(() => null);
+  return { ok: resp.ok, status: resp.status, data };
+}
+
+/* ──────────────────────────────────────────────
+   PAGINATION
+────────────────────────────────────────────── */
+function changePage(type, delta) {
+  const state = pagination[type];
+  if (delta === 1 && state.next)  { state.page++; }
+  if (delta === -1 && state.prev) { state.page--; }
+  if (type === 'patients')      loadPatients();
+  if (type === 'consultations') loadConsultations();
+}
+
+function updatePaginationUI(type, data) {
+  const state = pagination[type];
+  state.next  = data.next;
+  state.prev  = data.previous;
+  state.count = data.count;
+
+  const isPat = type === 'patients';
+  const paginationEl = document.getElementById(isPat ? 'patientsPagination'      : 'consultationsPagination');
+  const infoEl       = document.getElementById(isPat ? 'paginationInfo'           : 'cPaginationInfo');
+  const prevBtn      = document.getElementById(isPat ? 'pPrevBtn'                 : 'cPrevBtn');
+  const nextBtn      = document.getElementById(isPat ? 'pNextBtn'                 : 'cNextBtn');
+
+  paginationEl.classList.toggle('d-none', data.count === 0);
+  const pageSize = 10;
+  const start = (state.page - 1) * pageSize + 1;
+  const end   = Math.min(state.page * pageSize, data.count);
+  infoEl.textContent = `Showing ${start}–${end} of ${data.count}`;
+  prevBtn.disabled = !data.previous;
+  nextBtn.disabled = !data.next;
+}
+
+/* ──────────────────────────────────────────────
+   PATIENTS
+────────────────────────────────────────────── */
+async function loadPatients() {
+  const page = pagination.patients.page;
+  const { ok, data } = await apiFetch(`/patients/?page=${page}`);
+  const container = document.getElementById('patientsList');
+  if (!ok || !data?.results?.length) {
+    container.innerHTML = '<div class="empty-state"><i class="bi bi-person-x"></i>No patients found.</div>';
+    document.getElementById('patientsPagination').classList.add('d-none');
+    return;
+  }
+  updatePaginationUI('patients', data);
+  container.innerHTML = `
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>#</th><th>Name</th><th>Date of Birth</th><th>Email</th></tr>
+      </thead>
+      <tbody>
+        ${data.results.map(p => `
+          <tr>
+            <td class="text-muted">${p.id}</td>
+            <td class="fw-medium">${p.full_name}</td>
+            <td>${formatDate(p.date_of_birth)}</td>
+            <td>${p.email}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById('patientForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError('patientError');
+  const full_name    = document.getElementById('pFullName').value.trim();
+  const date_of_birth = document.getElementById('pDob').value;
+  const email        = document.getElementById('pEmail').value.trim();
+  if (!full_name || !date_of_birth || !email) {
+    showError('patientError', 'All fields are required.'); return;
+  }
+  setLoading('patientSubmitBtn', 'patientSpinner', true);
+  const { ok, data } = await apiFetch('/patients/', {
+    method: 'POST', body: JSON.stringify({ full_name, date_of_birth, email }),
+  });
+  setLoading('patientSubmitBtn', 'patientSpinner', false);
+  if (ok) {
+    showToast(`Patient <strong>${data.full_name}</strong> created successfully.`);
+    document.getElementById('patientForm').reset();
+    pagination.patients.page = 1;
+    loadPatients();
+  } else {
+    const msg = data?.detail?.email?.[0] || data?.message || 'Failed to create patient.';
+    showError('patientError', msg);
+    showToast(msg, 'danger');
+  }
+});
+
+/* ──────────────────────────────────────────────
+   CONSULTATIONS
+────────────────────────────────────────────── */
+async function loadPatientOptions() {
+  const { ok, data } = await apiFetch('/patients/?page_size=1000');
+  if (!ok) return;
+  const patients = data?.results || [];
+  const selects = [document.getElementById('cPatient'), document.getElementById('filterPatient')];
+  selects.forEach((sel, idx) => {
+    const keepFirst = sel.options[0];
+    sel.innerHTML = '';
+    sel.appendChild(keepFirst);
+    patients.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.full_name} (${p.email})`;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+async function loadConsultations() {
+  const page     = pagination.consultations.page;
+  const patFilter = document.getElementById('filterPatient')?.value || '';
+  const queryStr  = patFilter ? `&patient=${patFilter}` : '';
+  const { ok, data } = await apiFetch(`/consultations/?page=${page}${queryStr}`);
+  const container = document.getElementById('consultationsList');
+  if (!ok || !data?.results?.length) {
+    container.innerHTML = '<div class="empty-state"><i class="bi bi-clipboard-x"></i>No consultations found.</div>';
+    document.getElementById('consultationsPagination').classList.add('d-none');
+    return;
+  }
+  updatePaginationUI('consultations', data);
+  container.innerHTML = data.results.map(c => buildConsultationCard(c)).join('');
+}
+
+function buildConsultationCard(c) {
+  const patName = c.patient_details?.full_name || `Patient #${c.patient}`;
+  const hasSummary = !!c.ai_summary;
+  const summaryHtml = hasSummary
+    ? `<div class="summary-box mt-2">${c.ai_summary}</div>`
+    : '';
+  return `
+    <div class="border-bottom p-3" id="consultation-row-${c.id}">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <span class="fw-semibold">${patName}</span>
+          <span class="text-muted small ms-2">${formatDate(c.created_at)}</span>
+          ${hasSummary ? '<span class="ms-2 badge-ai">AI Summary</span>' : ''}
+        </div>
+        <button class="btn btn-sm btn-outline-primary" id="summary-btn-${c.id}" onclick="generateSummary(${c.id})">
+          <span id="summary-spinner-${c.id}" class="spinner-border spinner-border-sm me-1 d-none"></span>
+          <i class="bi bi-stars me-1"></i>${hasSummary ? 'Regenerate' : 'Generate AI Summary'}
+        </button>
+      </div>
+      <p class="mb-1 mt-2 small"><strong>Symptoms:</strong> ${c.symptoms}</p>
+      ${c.diagnosis ? `<p class="mb-1 small"><strong>Diagnosis:</strong> ${c.diagnosis}</p>` : ''}
+      <div id="summary-container-${c.id}">${summaryHtml}</div>
+    </div>`;
+}
+
+async function generateSummary(id) {
+  const btn = document.getElementById(`summary-btn-${id}`);
+  const spinner = document.getElementById(`summary-spinner-${id}`);
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+
+  const { ok, data } = await apiFetch(`/consultations/${id}/generate-summary/`, { method: 'POST' });
+
+  btn.disabled = false;
+  spinner.classList.add('d-none');
+
+  if (ok) {
+    const container = document.getElementById(`summary-container-${id}`);
+    container.innerHTML = `<div class="summary-box mt-2">${data.ai_summary}</div>`;
+    btn.innerHTML = '<i class="bi bi-stars me-1"></i>Regenerate';
+    // Add badge if not already present
+    const row = document.getElementById(`consultation-row-${id}`);
+    if (!row.querySelector('.badge-ai')) {
+      row.querySelector('.fw-semibold').insertAdjacentHTML('afterend', '<span class="ms-2 badge-ai">AI Summary</span>');
+    }
+    showToast('AI summary generated successfully!');
+  } else {
+    const msg = data?.message || 'Failed to generate summary.';
+    showToast(msg, 'danger');
+  }
+}
+
+document.getElementById('consultationForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError('consultationError');
+  const patient  = document.getElementById('cPatient').value;
+  const symptoms = document.getElementById('cSymptoms').value.trim();
+  const diagnosis = document.getElementById('cDiagnosis').value.trim();
+  if (!patient || !symptoms) {
+    showError('consultationError', 'Patient and symptoms are required.'); return;
+  }
+  setLoading('consultationSubmitBtn', 'consultationSpinner', true);
+  const { ok, data } = await apiFetch('/consultations/', {
+    method: 'POST',
+    body: JSON.stringify({ patient: parseInt(patient, 10), symptoms, diagnosis }),
+  });
+  setLoading('consultationSubmitBtn', 'consultationSpinner', false);
+  if (ok) {
+    showToast('Consultation created successfully.');
+    document.getElementById('consultationForm').reset();
+    pagination.consultations.page = 1;
+    loadConsultations();
+  } else {
+    const msg = data?.message || 'Failed to create consultation.';
+    showError('consultationError', msg);
+    showToast(msg, 'danger');
+  }
+});
+
+/* ──────────────────────────────────────────────
+   INIT
+────────────────────────────────────────────── */
+loadPatients();
+loadPatientOptions();
+loadConsultations();
+</script>
+</body>
+</html>

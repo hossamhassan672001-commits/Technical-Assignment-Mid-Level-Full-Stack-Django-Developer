@@ -1,0 +1,9 @@
+django==6.0.2
+djangorestframework==3.16.1
+django-cors-headers==4.9.0
+python-dotenv==1.2.1
+drf-yasg==1.21.14
+djangorestframework-simplejwt==5.5.1
+openai==2.21.0
+pytest==9.0.2
+pytest-django==4.12.0
